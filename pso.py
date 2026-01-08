@@ -43,8 +43,6 @@ class Particle:
             )
 
             self.position[i] += self.velocity[i]
-
-            # ograniczenie - jeszcze nie wiem jak obsługiwać wyjścia poza zakres 
             self.position[i] = max(bounds[0], min(self.position[i], bounds[1]))
 
 class Swarm:

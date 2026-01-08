@@ -1,6 +1,7 @@
 import os
 import statistics
 import matplotlib.pyplot as plt
+import numpy as np
 from pso import Swarm
 
 # --- 1. Bezpieczne Funkcje Celu ---
@@ -16,17 +17,13 @@ def function_goldstein_price(x: float, y: float) -> float:
     except (OverflowError, ValueError):
         return float('inf')
 
-def function_beale(x: float, y: float) -> float:
-    try:
-        return (
-            (1.5 - x + x*y)**2
-            + (2.25 - x + x*y**2)**2
-            + (2.625 - x + x*y**3)**2
-        )
-    except (OverflowError, ValueError):
-        return float('inf')
+def function_eggholder(x, y):
+    # Minimum globalne: -959.6407 w punkcie (512, 404.2319)
+    # Zakres DUŻY: [-512, 512]
+    term1 = -(y + 47) * np.sin(np.sqrt(np.abs(x / 2 + (y + 47))))
+    term2 = -x * np.sin(np.sqrt(np.abs(x - (y + 47))))
+    return term1 + term2
 
-# --- 2. Silnik Eksperymentów ---
 def run_experiments(func, func_name, bounds, param_name, param_values, base_params, runs=5):
     results_mean = []
     results_median = []
@@ -113,16 +110,15 @@ def main():
     while True:
         print("\nDostępne funkcje:")
         print("1. Funkcja Goldstein-Price (domyślna)")
-        print("2. Funkcja Beale")
+        print("2. Funkcja Eggholder")
         print("q. Wyjście")
         
         choice = input("Wybierz funkcję (1/2/q): ")
         if choice == 'q': break
-        
-        if choice == '2':
-            func = function_beale
-            func_name = "Beale"
-            bounds = (-4.5, 4.5)
+        elif choice == '2':
+            func = function_eggholder
+            func_name = 'Eggholder'
+            bounds = (-512,512)
         else:
             func = function_goldstein_price
             func_name = "Goldstein-Price"
@@ -142,38 +138,38 @@ def main():
         inertia_vals = [0.1, 0.3, 0.5, 0.7, 0.9] 
         components_vals = [0.1, 0.5, 0.7, 1.5, 2.0]
 
-        base_path = 'results/experiment_'
+        base_path = 'results/'
         # 1. Badanie parametru inertia
         means, medians, bests, worsts, stds = run_experiments( func, func_name, bounds, "inertia",
                                                                inertia_vals, base_params, runs=5)
         plot_experiment(func_name,"Inertia (w)", inertia_vals, means, medians, bests, worsts, stds,
-            f"{base_path}inertia_{func_name}.png")
+            f"{base_path}{func_name}_inertia.png")
 
         # 2. Badanie parametru n (populacja)
         means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "n",
                                                               n_vals, base_params, runs=5)
         plot_experiment(func_name,"Liczba cząstek (n)",n_vals, means, medians, bests, worsts, stds,
-            f"{base_path}population_{func_name}.png")
+            f"{base_path}{func_name}_population.png")
 
         # 3. Badanie parametru cognitive (c)
         means, medians, bests, worsts, stds = run_experiments(
             func, func_name, bounds, "c", components_vals, base_params, runs=5)
         plot_experiment(func_name,"Współczynnik kognitywny (c)", components_vals, means, medians,
                         bests, worsts, stds,
-            f"{base_path}cognitive_{func_name}.png")
+            f"{base_path}{func_name}_cognitive.png")
 
         # 4. Badanie parametru social (s)
         means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "s",
                                                               components_vals, base_params, runs=5)
         plot_experiment(func_name,"Współczynnik społeczny (s)",components_vals,means, medians,
                         bests, worsts, stds,
-            f"{base_path}social_{func_name}.png")
+            f"{base_path}{func_name}_social.png")
 
         # 5. Badanie liczby iteracji
         means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "iterations",
                                                               iterations_vals, base_params, runs=5)
         plot_experiment(func_name,"Liczba iteracji",iterations_vals,means, medians, bests, worsts, stds,
-            f"{base_path}iterations_{func_name}.png",
+            f"{base_path}{func_name}_iterations.png",
         )
 
 if __name__ == "__main__":
