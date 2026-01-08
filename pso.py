@@ -32,10 +32,11 @@ class Particle:
 
 
     def update_position(self, global_best_position: Sequence[float], bounds: Tuple[float, float]):
-        r1 = random.random()
-        r2 = random.random()
 
         for i in range(2):
+            r1 = random.random()
+            r2 = random.random()
+
             self.velocity[i] = (
                 self.inertia * self.velocity[i]
                 + self.cognitive_factor * r1 * (self.best_position[i] - self.position[i])

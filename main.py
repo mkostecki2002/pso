@@ -3,6 +3,9 @@ import statistics
 import matplotlib.pyplot as plt
 import numpy as np
 from pso import Swarm
+import csv
+import time
+from datetime import datetime
 
 # --- 1. Bezpieczne Funkcje Celu ---
 def function_goldstein_price(x: float, y: float) -> float:
@@ -24,7 +27,7 @@ def function_eggholder(x, y):
     term2 = -x * np.sin(np.sqrt(np.abs(x - (y + 47))))
     return term1 + term2
 
-def run_experiments(func, func_name, bounds, param_name, param_values, base_params, runs=5):
+def run_experiments(func, func_name, bounds, param_name, param_values, base_params, runs=5, csv_writer=None):
     results_mean = []
     results_median = []
     results_best = []
@@ -37,8 +40,9 @@ def run_experiments(func, func_name, bounds, param_name, param_values, base_para
         # WAŻNE: Kopia parametrów, aby nie nadpisywać ich dla kolejnych pętli
         current_params = base_params.copy()
         current_params[param_name] = val
-        
+
         trial_scores = []
+        trial_times = []
         
         # Uruchamiamy 5 prób dla jednej wartości parametru
         for i in range(runs):
@@ -49,8 +53,11 @@ def run_experiments(func, func_name, bounds, param_name, param_values, base_para
                 cognitive_factor=current_params['c'], 
                 social_factor=current_params['s']
             )
+            t0 = time.perf_counter()
             score, _pos = swarm.run(func, iterations=current_params["iterations"])
+            t1 = time.perf_counter()
             trial_scores.append(score)
+            trial_times.append(t1 - t0)
         
         # Obliczamy statystyki dla tej wartości parametru
         trial_scores.sort()
@@ -59,6 +66,7 @@ def run_experiments(func, func_name, bounds, param_name, param_values, base_para
         mean_val = statistics.mean(trial_scores)
         median_val = statistics.median(trial_scores)
         std_val = statistics.stdev(trial_scores) if len(trial_scores) > 1 else 0.0
+        mean_time = statistics.mean(trial_times)
 
         results_mean.append(mean_val)
         results_median.append(median_val)
@@ -70,6 +78,27 @@ def run_experiments(func, func_name, bounds, param_name, param_values, base_para
             f"  {param_name}={val}: mean={mean_val:.4f}, median={median_val:.4f}, "
             f"best={best_val:.4f}, worst={worst_val:.4f}, std={std_val:.4f}"
         )
+
+        # Jeden wiersz CSV na jedną wartość parametru (podsumowanie 5 uruchomień)
+        if csv_writer is not None:
+            csv_writer.writerow(
+                [
+                    func_name,
+                    param_name,
+                    val,
+                    current_params["n"],
+                    current_params["iterations"],
+                    current_params["inertia"],
+                    current_params["c"],
+                    current_params["s"],
+                    f"{mean_val:.6f}",
+                    f"{median_val:.6f}",
+                    f"{best_val:.6f}",
+                    f"{worst_val:.6f}",
+                    f"{std_val:.6f}",
+                    f"{mean_time:.4f}",
+                ]
+            )
     
     return results_mean, results_median, results_best, results_worst, results_std
 
@@ -139,38 +168,49 @@ def main():
         components_vals = [0.1, 0.5, 0.7, 1.5, 2.0]
 
         base_path = 'results/'
-        # 1. Badanie parametru inertia
-        means, medians, bests, worsts, stds = run_experiments( func, func_name, bounds, "inertia",
-                                                               inertia_vals, base_params, runs=5)
-        plot_experiment(func_name,"Inertia (w)", inertia_vals, means, medians, bests, worsts, stds,
-            f"{base_path}{func_name}_inertia.png")
 
-        # 2. Badanie parametru n (populacja)
-        means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "n",
-                                                              n_vals, base_params, runs=5)
-        plot_experiment(func_name,"Liczba cząstek (n)",n_vals, means, medians, bests, worsts, stds,
-            f"{base_path}{func_name}_population.png")
+        # plik CSV (podsumowanie)
+        run_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+        summary_csv_path = os.path.join("results", f"summary_PSO_{func_name}_{run_tag}.csv")
 
-        # 3. Badanie parametru cognitive (c)
-        means, medians, bests, worsts, stds = run_experiments(
-            func, func_name, bounds, "c", components_vals, base_params, runs=5)
-        plot_experiment(func_name,"Współczynnik kognitywny (c)", components_vals, means, medians,
-                        bests, worsts, stds,
-            f"{base_path}{func_name}_cognitive.png")
+        with open(summary_csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(["Funkcja", "Badany parametr", "Wartosc parametru", "n", "iterations", "inertia", "c", "s",
+                             "mean", "median", "best", "worst", "std", "mean_time_s"])
 
-        # 4. Badanie parametru social (s)
-        means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "s",
-                                                              components_vals, base_params, runs=5)
-        plot_experiment(func_name,"Współczynnik społeczny (s)",components_vals,means, medians,
-                        bests, worsts, stds,
-            f"{base_path}{func_name}_social.png")
+            # 1. Badanie parametru inertia
+            means, medians, bests, worsts, stds = run_experiments( func, func_name, bounds, "inertia",
+                                                                   inertia_vals, base_params, runs=5, csv_writer=writer)
+            plot_experiment(func_name,"Inertia (w)", inertia_vals, means, medians, bests, worsts, stds,
+                f"{base_path}{func_name}_inertia.png")
 
-        # 5. Badanie liczby iteracji
-        means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "iterations",
-                                                              iterations_vals, base_params, runs=5)
-        plot_experiment(func_name,"Liczba iteracji",iterations_vals,means, medians, bests, worsts, stds,
-            f"{base_path}{func_name}_iterations.png",
-        )
+            # 2. Badanie parametru n (populacja)
+            means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "n",
+                                                                  n_vals, base_params, runs=5, csv_writer=writer)
+            plot_experiment(func_name,"Liczba cząstek (n)",n_vals, means, medians, bests, worsts, stds,
+                f"{base_path}{func_name}_population.png")
+
+            # 3. Badanie parametru cognitive (c)
+            means, medians, bests, worsts, stds = run_experiments(
+                func, func_name, bounds, "c", components_vals, base_params, runs=5, csv_writer=writer)
+            plot_experiment(func_name,"Współczynnik kognitywny (c)", components_vals, means, medians,
+                            bests, worsts, stds,
+                f"{base_path}{func_name}_cognitive.png")
+
+            # 4. Badanie parametru social (s)
+            means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "s",
+                                                                  components_vals, base_params, runs=5, csv_writer=writer)
+            plot_experiment(func_name,"Współczynnik społeczny (s)",components_vals,means, medians,
+                            bests, worsts, stds,
+                f"{base_path}{func_name}_social.png")
+
+            # 5. Badanie liczby iteracji
+            means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "iterations",
+                                                                  iterations_vals, base_params, runs=5, csv_writer=writer)
+            plot_experiment(func_name,"Liczba iteracji",iterations_vals,means, medians, bests, worsts, stds,
+                f"{base_path}{func_name}_iterations.png")
+
+        print(f"Zapisano statystyki do CSV: {summary_csv_path}")
 
 if __name__ == "__main__":
     main()
