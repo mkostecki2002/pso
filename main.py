@@ -1,6 +1,5 @@
-import math
+import os
 import statistics
-import time
 import matplotlib.pyplot as plt
 from pso import Swarm
 
@@ -28,9 +27,11 @@ def function_beale(x: float, y: float) -> float:
         return float('inf')
 
 # --- 2. Silnik Eksperymentów ---
-def run_experiments(func, func_name, bounds, param_name, param_values, base_params, iterations=100):
+def run_experiments(func, func_name, bounds, param_name, param_values, base_params, runs=5):
     results_mean = []
+    results_median = []
     results_best = []
+    results_worst = []
     results_std = []
 
     print(f"\n>>> Rozpoczynam badanie parametru: '{param_name}' dla {func_name}")
@@ -43,7 +44,7 @@ def run_experiments(func, func_name, bounds, param_name, param_values, base_para
         trial_scores = []
         
         # Uruchamiamy 5 prób dla jednej wartości parametru
-        for i in range(5):
+        for i in range(runs):
             swarm = Swarm(
                 num_of_particles=current_params['n'], 
                 bounds=bounds, 
@@ -51,49 +52,62 @@ def run_experiments(func, func_name, bounds, param_name, param_values, base_para
                 cognitive_factor=current_params['c'], 
                 social_factor=current_params['s']
             )
-            score, pos = swarm.run(func, iterations=iterations)
+            score, _pos = swarm.run(func, iterations=current_params["iterations"])
             trial_scores.append(score)
         
         # Obliczamy statystyki dla tej wartości parametru
+        trial_scores.sort()
+        best_val = trial_scores[0]
+        worst_val = trial_scores[-1]
         mean_val = statistics.mean(trial_scores)
-        best_val = min(trial_scores)
+        median_val = statistics.median(trial_scores)
         std_val = statistics.stdev(trial_scores) if len(trial_scores) > 1 else 0.0
-        
+
         results_mean.append(mean_val)
+        results_median.append(median_val)
         results_best.append(best_val)
+        results_worst.append(worst_val)
         results_std.append(std_val)
-        
-        print(f"  {param_name}={val}: Średnia={mean_val:.4f}, Best={best_val:.4f}, StdDev={std_val:.4f}")
+
+        print(
+            f"  {param_name}={val}: mean={mean_val:.4f}, median={median_val:.4f}, "
+            f"best={best_val:.4f}, worst={worst_val:.4f}, std={std_val:.4f}"
+        )
     
-    return results_mean, results_best, results_std
+    return results_mean, results_median, results_best, results_worst, results_std
 
 # --- 3. Rysowanie Wykresów ---
-def plot_experiment(func_name, param_label, x_values, mean_scores, best_scores, std_scores, filename):
+def plot_experiment(func_name, param_label, x_values, mean_scores, median_scores, best_scores, worst_scores,
+                    std_scores, filename):
     plt.figure(figsize=(10, 6))
-    
-    # 1. Rysowanie średniej z Error Bars (odchylenie standardowe)
-    plt.errorbar(x_values, mean_scores, yerr=std_scores, 
-                 fmt='-o', linewidth=1, capsize=2, label='Średnia ± StdDev', ecolor='red')
-    
-    # 2. Rysowanie najlepszego wyniku
-    plt.plot(x_values, best_scores, 's--', alpha=0.7, label='Najlepszy wynik (Best)')
-    
+
+    # mean ± std
+    plt.errorbar(
+        x_values, mean_scores, yerr=std_scores, fmt='-o', linewidth=1, capsize=3, label='Średnia ± StdDev',
+        ecolor='red'
+    )
+
+    # median
+    plt.plot(x_values, median_scores, 'd-.', alpha=0.85, label='Mediana')
+
+    # best / worst
+    plt.plot(x_values, best_scores, 's--', alpha=0.8, label='Najlepszy (Best)')
+    plt.plot(x_values, worst_scores, 'x:', alpha=0.8, label='Najgorszy (Worst)')
+
     plt.title(f'Wpływ: {param_label} na wynik ({func_name})')
     plt.xlabel(param_label)
-    plt.ylabel('Wartość funkcji celu (skala log)')
-    
-    # Używamy skali logarytmicznej, bo wyniki mogą się różnić rzędami wielkości
-    # plt.yscale('log')
+    plt.ylabel('Wartość funkcji celu')
     plt.grid(True, which="both", ls="-", alpha=0.4)
     plt.legend()
-    
     plt.tight_layout()
     plt.savefig(filename)
-    print(f"Wygenerowano wykres: {filename}")
     plt.close()
+
+    print(f"Wygenerowano wykres: {filename}")
 
 # --- 4. Main ---
 def main():
+    os.makedirs("results", exist_ok=True)
     print("== PSO: Optymalizacja Funkcji Dwóch Zmiennych ==")
     
     while True:
@@ -130,24 +144,37 @@ def main():
 
         base_path = 'results/experiment_'
         # 1. Badanie parametru inertia
-        means, bests, stds = run_experiments(func, func_name, bounds, 'inertia', inertia_vals, base_params)
-        plot_experiment(func_name, 'Inertia (w)', inertia_vals, means, bests, stds, f'{base_path}inertia_{func_name}.png')
-        
+        means, medians, bests, worsts, stds = run_experiments( func, func_name, bounds, "inertia",
+                                                               inertia_vals, base_params, runs=5)
+        plot_experiment(func_name,"Inertia (w)", inertia_vals, means, medians, bests, worsts, stds,
+            f"{base_path}inertia_{func_name}.png")
+
         # 2. Badanie parametru n (populacja)
-        means, bests, stds = run_experiments(func, func_name, bounds, 'n', n_vals, base_params)
-        plot_experiment(func_name, 'Liczba cząstek (n)', n_vals, means, bests, stds, f'{base_path}population_{func_name}.png')
+        means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "n",
+                                                              n_vals, base_params, runs=5)
+        plot_experiment(func_name,"Liczba cząstek (n)",n_vals, means, medians, bests, worsts, stds,
+            f"{base_path}population_{func_name}.png")
 
         # 3. Badanie parametru cognitive (c)
-        means, bests, stds = run_experiments(func, func_name, bounds, 'c', components_vals, base_params)
-        plot_experiment(func_name, 'Współczynnik kognitywny (c)', components_vals, means, bests, stds, f'{base_path}cognitive_{func_name}.png')
+        means, medians, bests, worsts, stds = run_experiments(
+            func, func_name, bounds, "c", components_vals, base_params, runs=5)
+        plot_experiment(func_name,"Współczynnik kognitywny (c)", components_vals, means, medians,
+                        bests, worsts, stds,
+            f"{base_path}cognitive_{func_name}.png")
 
         # 4. Badanie parametru social (s)
-        means, bests, stds = run_experiments(func, func_name, bounds, 's', components_vals, base_params)
-        plot_experiment(func_name, 'Współczynnik społeczny (s)', components_vals, means, bests, stds, f'{base_path}social_{func_name}.png')
+        means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "s",
+                                                              components_vals, base_params, runs=5)
+        plot_experiment(func_name,"Współczynnik społeczny (s)",components_vals,means, medians,
+                        bests, worsts, stds,
+            f"{base_path}social_{func_name}.png")
 
         # 5. Badanie liczby iteracji
-        means, bests, stds = run_experiments(func, func_name, bounds, 'iterations', iterations_vals, base_params)
-        plot_experiment(func_name, 'Liczba iteracji', iterations_vals, means, bests, stds, f'{base_path}iterations_{func_name}.png')
+        means, medians, bests, worsts, stds = run_experiments(func, func_name, bounds, "iterations",
+                                                              iterations_vals, base_params, runs=5)
+        plot_experiment(func_name,"Liczba iteracji",iterations_vals,means, medians, bests, worsts, stds,
+            f"{base_path}iterations_{func_name}.png",
+        )
 
 if __name__ == "__main__":
     main()

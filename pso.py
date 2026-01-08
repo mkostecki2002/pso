@@ -1,4 +1,5 @@
 import random
+from collections.abc import Sequence
 from typing import Tuple, Callable
 
 class Particle:
@@ -27,10 +28,10 @@ class Particle:
         
         if self.current_score < self.best_score:
             self.best_score = self.current_score
-            self.best_position = self.position
+            self.best_position = self.position.copy()
 
 
-    def update_position(self, global_best_position: Tuple[float, float], bounds: Tuple[float, float]):
+    def update_position(self, global_best_position: Sequence[float], bounds: Tuple[float, float]):
         r1 = random.random()
         r2 = random.random()
 
@@ -54,7 +55,7 @@ class Swarm:
         self.bounds = bounds
         
         # Najlepsze rozwiązanie roju
-        self.global_best_position = [None, None]
+        self.global_best_position = self.particles[0].position.copy()
         self.global_best_score = float('inf')
 
     def run(self, function: Callable, iterations: int):
@@ -66,10 +67,10 @@ class Swarm:
                 # Aktualizacja globalnego minimum
                 if p.current_score < self.global_best_score:
                     self.global_best_score = p.current_score
-                    self.global_best_position = p.best_position
+                    self.global_best_position = p.best_position.copy()
             
             # Aktualizacja pozycji
             for p in self.particles:
                 p.update_position(self.global_best_position, self.bounds)
         
-        return self.global_best_score, self.global_best_position
+        return self.global_best_score, tuple(self.global_best_position)
